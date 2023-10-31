@@ -29,7 +29,7 @@
 module DomsMatch where
     import System.Random
     import Data.List
-    import Data.Ord (comparing)
+    import Data.Ord (comparing)   
 
 
     -- types used in this module
@@ -159,8 +159,28 @@ module DomsMatch where
                  | otherwise    = new
               Just newBoard = maybeBoard -- extract the new board from the Maybe type
 
+    {- scoreBoard: Takes a Board and Boolean that describes whether the domino placed was the last in the hand.
+       If it is the initial state of the board before a domino has been placed then the score is trivially 0.
+       Otherwise, the total of the pips of the left and right dominos are found and then the score of that total
+       is found - including +1 if it was the last domino in the hand.
+    -}
     scoreBoard :: Board -> Bool -> Int
-    scoreBoard _ _ = 0
+    scoreBoard InitState _ = 0 -- no dominos on the board
+    scoreBoard (State (l1,l2) (r1,r2) history ) final | final = 1 + findScore getTotal -- +1 for the last domino
+                                                      | otherwise = findScore getTotal
+      where
+        getTotal | double == (True,True) = 2*l1 + 2*r2
+                 | double == (True,False) = 2*l1 + r2
+                 | double == (False,True) = l1 + 2*r2
+                 | otherwise = l1 + r2
+          where 
+            double = (l1==l2,r1==r2) -- checks for double dominos
+        findScore total | divisible == (True,True) = (total `div` 3) + (total `div` 5)
+                        | divisible == (True,False) = total `div` 3
+                        | divisible == (False,True) = total `div` 5
+                        | otherwise = 0
+          where
+            divisible = (total `mod` 3 == 0,total `mod` 5 == 0) -- checks for possible scoring
 
     blocked :: Hand -> Board -> Bool
     blocked _ _ = True
