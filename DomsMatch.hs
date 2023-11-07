@@ -166,24 +166,40 @@ module DomsMatch where
     -}
     scoreBoard :: Board -> Bool -> Int
     scoreBoard InitState _ = 0 -- no dominos on the board
-    scoreBoard (State (l1,l2) (r1,r2) history ) final | final = 1 + findScore getTotal -- +1 for the last domino
-                                                      | otherwise = findScore getTotal
-      where
-        getTotal | double == (True,True) = 2*l1 + 2*r2
-                 | double == (True,False) = 2*l1 + r2
-                 | double == (False,True) = l1 + 2*r2
-                 | otherwise = l1 + r2
-          where 
+    scoreBoard (State (l1,l2) (r1,r2) history ) final 
+      | final     = 1 + findScore getTotal
+      | otherwise = findScore getTotal
+        where
+        findScore total 
+          | divisible == (True,True)  = (total `div` 3) + (total `div` 5)
+          | divisible == (True,False) = total `div` 3
+          | divisible == (False,True) = total `div` 5
+          | otherwise = 0
+            where
+            divisible = (total `mod` 3 == 0,total `mod` 5 == 0) -- checks for possible points
+        getTotal 
+          | double == (True,True)  = 2*l1 + 2*r2
+          | double == (True,False) = 2*l1 + r2
+          | double == (False,True) = l1 + 2*r2
+          | otherwise              = l1 + r2
+            where
             double = (l1==l2,r1==r2) -- checks for double dominos
-        findScore total | divisible == (True,True) = (total `div` 3) + (total `div` 5)
-                        | divisible == (True,False) = total `div` 3
-                        | divisible == (False,True) = total `div` 5
-                        | otherwise = 0
-          where
-            divisible = (total `mod` 3 == 0,total `mod` 5 == 0) -- checks for possible scoring
 
+    {- blocked - takes a Hand and a Board state and outputs True if the player is blocked.
+       A player is blocked if there are no Dominos in their Hand that they can play on
+       the Board. 
+       A player can play a Domino if either end of it matches with the leftmost pips or
+       the rightmost pips (the same works even if the left and right ends are doubles).
+    -}
     blocked :: Hand -> Board -> Bool
-    blocked _ _ = True
+    blocked _ InitState = False -- cannot be blocked at the start of the game
+    blocked [] _ = True -- no dominos to play means they are blocked
+    blocked ((a,b):dominos) state@(State (l1,l2) (r1,r2) history) 
+      | or matches = False 
+      | otherwise = blocked dominos state
+        where
+        matches = [a == l1, a == r2, b == l1, b == r2]
        
     playDom :: Player -> Domino -> Board -> End -> Maybe Board
-    playDom _ _ _ _ = Nothing
+    playDom player (a,b) InitState end = Just (State (a,b) (b,a) [((a,b), player, 1)])
+    --playDom player (l,r) (State (l1,l2) (r1,r2) history) end 
