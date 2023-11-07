@@ -178,7 +178,7 @@ module DomsMatch where
             where
             divisible = (total `mod` 3 == 0,total `mod` 5 == 0) -- checks for possible points
         getTotal 
-          | double == (True,True)  = 2*l1 + 2*r2
+          | double == (True,True)  = 2*(l1 + r2)
           | double == (True,False) = 2*l1 + r2
           | double == (False,True) = l1 + 2*r2
           | otherwise              = l1 + r2
@@ -201,5 +201,8 @@ module DomsMatch where
         matches = [a == l1, a == r2, b == l1, b == r2]
        
     playDom :: Player -> Domino -> Board -> End -> Maybe Board
-    playDom player (a,b) InitState end = Just (State (a,b) (b,a) [((a,b), player, 1)])
-    --playDom player (l,r) (State (l1,l2) (r1,r2) history) end 
+    playDom player (a,b) InitState end = Just (State (a,b) (a,b) [((a,b), player, 1)])
+    --playDom player (a,b) (State (l1,l2) (r1,r2) history) end
+
+    {- want to find the end, get the right pip value, compare to a and b and then create the state with the correct domino in place, then update the history accordingly
+    -}
