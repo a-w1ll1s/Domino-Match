@@ -31,6 +31,7 @@ module DomsMatch where
     import Data.List
     import Data.Ord (comparing)   
 
+    import Data.Maybe 
 
     -- types used in this module
     type Domino = (Int, Int) -- a single domino
@@ -193,16 +194,49 @@ module DomsMatch where
     -}
     blocked :: Hand -> Board -> Bool
     blocked _ InitState = False -- cannot be blocked at the start of the game
-    blocked [] _ = True -- no dominos to play means they are blocked
+    blocked [] _ = True 
     blocked ((a,b):dominos) state@(State (l1,l2) (r1,r2) history) 
-      | or matches = False 
+      | or matches = False -- there is at least one pair of matching pips 
       | otherwise = blocked dominos state
         where
         matches = [a == l1, a == r2, b == l1, b == r2]
        
-    playDom :: Player -> Domino -> Board -> End -> Maybe Board
-    playDom player (a,b) InitState end = Just (State (a,b) (a,b) [((a,b), player, 1)])
-    --playDom player (a,b) (State (l1,l2) (r1,r2) history) end
-
-    {- want to find the end, get the right pip value, compare to a and b and then create the state with the correct domino in place, then update the history accordingly
+    {- playDom - takes a player, domino, state of the board and an end to play the domino on.
+       It returns a new state of the board with an updated history if it a legal play, 
+       otherwise it returns Nothing. 
     -}
+    playDom :: Player -> Domino -> Board -> End -> Maybe Board
+    playDom player dom InitState _ = Just (State dom dom [(dom,player,1)])
+    playDom player (a,b) (State (l1,l2) (r1,r2) history) R
+      | a == r2 = Just (State (l1,l2) (a,b) (updateHistory (a,b) R))
+      | b == r2 = Just (State (l1,l2) (b,a) (updateHistory (b,a) R))
+      | otherwise = Nothing
+        where
+        updateHistory dom end = history ++ [(dom,player,length history + 1)]
+    playDom player (a,b) (State (l1,l2) (r1,r2) history) L
+      | a == l1 = Just (State (b,a) (r1,r2) (updateHistory (a,b) L))
+      | b == l1 = Just (State (a,b) (r1,r2) (updateHistory (b,a) L))
+      | otherwise = Nothing
+        where
+        updateHistory dom end = (dom,player,length history + 1) : history
+    
+    {- simplePlayer takes a Hand, a Board, the Player and the scores and returns
+       a domino and where to play it.
+       It filters the players hand for valid dominos, and then chooses the first one.
+       It does not include any strategy or reasoning.    
+    -}
+    simplePlayer :: Hand -> Board -> Player -> Scores -> (Domino, End) 
+    simplePlayer (dom:dominos) InitState _ _ = (dom,R) -- L or R makes no difference for the first move
+    simplePlayer dominos state@(State (l1,l2) (r1,r2) history) player scores 
+      = head (mapMaybe (\dom -> canPlay dom state) dominos)
+    
+    {- canPlay takes a domino and a board and returns the domino and the end to
+       play it if it is a valid move. Otherwise, Nothing is returned. 
+    -}
+    canPlay :: Domino -> Board -> Maybe (Domino, End)
+    canPlay (a,b) (State (l1,l2) (r1,r2) history) 
+      | a == r2 || b == r2 = Just ((a,b),R)
+      | a == l1 || b == l1 = Just ((a,b),L)
+      | otherwise = Nothing
+
+    {- CHECK DISCUSSION BOARD ABOUT FUNCTION STYLE AND IMPORTING DATA.MAYBE -}
