@@ -166,25 +166,14 @@ module DomsMatch where
        is found - including +1 if it was the last domino in the hand.
     -}
     scoreBoard :: Board -> Bool -> Int
-    scoreBoard InitState _ = 0 -- no dominos on the board
-    scoreBoard (State (l1,l2) (r1,r2) history ) final 
-      | final     = 1 + findScore getTotal
-      | otherwise = findScore getTotal
-        where
-        findScore total 
-          | divisible == (True,True)  = (total `div` 3) + (total `div` 5)
-          | divisible == (True,False) = total `div` 3
-          | divisible == (False,True) = total `div` 5
-          | otherwise = 0
-            where
-            divisible = (total `mod` 3 == 0,total `mod` 5 == 0) -- checks for possible points
-        getTotal 
-          | double == (True,True)  = 2*(l1 + r2)
-          | double == (True,False) = 2*l1 + r2
-          | double == (False,True) = l1 + 2*r2
-          | otherwise              = l1 + r2
-            where
-            double = (l1==l2,r1==r2) -- checks for double dominos
+    scoreBoard InitState _ = 0 --no dominos on the board
+    scoreBoard (State (l1,l2) (r1,r2) history ) final = findScore total + (if final then 1 else 0)
+      where
+      total --checks for double dominos
+        | r1==r2 && l1==l2 = 2*(r2 + l1)
+        | r1==r2           = 2*r2 + l1
+        | l1==l2           = r2 + 2*l1
+        | otherwise        = l1 + r2
 
     {- blocked - takes a Hand and a Board state and outputs True if the player is blocked.
        A player is blocked if there are no Dominos in their Hand that they can play on
@@ -194,12 +183,9 @@ module DomsMatch where
     -}
     blocked :: Hand -> Board -> Bool
     blocked _ InitState = False -- cannot be blocked at the start of the game
-    blocked [] _ = True 
-    blocked ((a,b):dominos) state@(State (l1,l2) (r1,r2) history) 
-      | or matches = False -- there is at least one pair of matching pips 
-      | otherwise = blocked dominos state
-        where
-        matches = [a == l1, a == r2, b == l1, b == r2]
+    blocked dominos (State (l1,l2) (r1,r2) history) = any matches dominos
+      where
+      matches (a,b) = or [a==r2,a==l1,b==r2,b==l1] --at least one valid play
        
     {- playDom - takes a player, domino, state of the board and an end to play the domino on.
        It returns a new state of the board with an updated history if it a legal play, 
@@ -207,18 +193,18 @@ module DomsMatch where
     -}
     playDom :: Player -> Domino -> Board -> End -> Maybe Board
     playDom player dom InitState _ = Just (State dom dom [(dom,player,1)])
-    playDom player (a,b) (State (l1,l2) (r1,r2) history) R
-      | a == r2 = Just (State (l1,l2) (a,b) (updateHistory (a,b) R))
-      | b == r2 = Just (State (l1,l2) (b,a) (updateHistory (b,a) R))
-      | otherwise = Nothing
+    playDom player (a, b) (State (l1, l2) (r1, r2) history) end
+      | valid && end==R = Just (State (l1,l2) domino updateHistory)
+      | valid && end==L = Just (State domino (r1,r2) updateHistory)
+      | otherwise       = Nothing
         where
-        updateHistory dom end = history ++ [(dom,player,length history + 1)]
-    playDom player (a,b) (State (l1,l2) (r1,r2) history) L
-      | a == l1 = Just (State (b,a) (r1,r2) (updateHistory (a,b) L))
-      | b == l1 = Just (State (a,b) (r1,r2) (updateHistory (b,a) L))
-      | otherwise = Nothing
-        where
-        updateHistory dom end = (dom,player,length history + 1) : history
+        valid = or [a==r2,a==l1,b==r2,b==l1]
+        domino 
+          | a==r2 || b==l1 = (a,b)  
+          | a==l1 || b==r2 = (b,a)
+        updateHistory
+          | end==R = history ++ [(domino,player,length history +1)]
+          | end==L = (domino,player,length history +1) : history
     
     {- simplePlayer takes a Hand, a Board, the Player and the scores and returns
        a domino and where to play it.
@@ -226,9 +212,44 @@ module DomsMatch where
        It does not include any strategy or reasoning.    
     -}
     simplePlayer :: Hand -> Board -> Player -> Scores -> (Domino, End) 
-    simplePlayer (dom:dominos) InitState _ _ = (dom,R) -- L or R makes no difference for the first move
+    simplePlayer (dom:dominos) InitState _ _ = (dom,R)
     simplePlayer dominos state@(State (l1,l2) (r1,r2) history) player scores 
-      = head (mapMaybe (\dom -> canPlay dom state) dominos)
+      = head (mapMaybe (`canPlay` state) dominos)
+
+    {- smartPlayer takes a Hand, a Board, the Player and the scores and returns
+       a domino and where to play it.
+
+       Strategies:
+        Opening - play (5,4) 
+                - play highest scorer
+                - play biggest double
+        
+        General - Place doubles early
+                - Place high scorers early
+                - Keep majority of suits
+                - History of opponent
+        
+        Endgame - look for a winner
+                - look for a 59
+                - stitch if the opponent is close to winning
+              
+    -}
+    smartPlayer :: Hand -> Board -> Player -> Scores -> (Domino,End)
+    smartPlayer dominos InitState _ _ = firstDrop
+      where
+      firstDrop | (5,4) `elem` dominos = ((5,4),R) --best opening choice
+                | otherwise = (fst ( maximumBy (comparing snd) (zip dominos (map (\(a,b) -> findScore a+b) dominos))), R)
+                
+    {- SHOULD THIS BE STANDALONE?????????????????????????????????????????????????????????-}
+    findScore :: Int -> Int 
+    findScore total 
+      | divBy3 && divBy5 = total `div` 3 + total `div` 5
+      | divBy3           = total `div` 3
+      | divBy5           = total `div` 5
+      | otherwise        = 0
+        where
+        divBy3 = total `mod` 3 == 0
+        divBy5 = total `mod` 5 == 0
     
     {- canPlay takes a domino and a board and returns the domino and the end to
        play it if it is a valid move. Otherwise, Nothing is returned. 
@@ -237,6 +258,4 @@ module DomsMatch where
     canPlay (a,b) (State (l1,l2) (r1,r2) history) 
       | a == r2 || b == r2 = Just ((a,b),R)
       | a == l1 || b == l1 = Just ((a,b),L)
-      | otherwise = Nothing
-
-    {- CHECK DISCUSSION BOARD ABOUT FUNCTION STYLE AND IMPORTING DATA.MAYBE -}
+      | otherwise          = Nothing
