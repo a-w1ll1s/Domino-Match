@@ -167,13 +167,21 @@ module DomsMatch where
     -}
     scoreBoard :: Board -> Bool -> Int
     scoreBoard InitState _ = 0 --no dominos on the board
-    scoreBoard (State (l1,l2) (r1,r2) history ) final = findScore total + (if final then 1 else 0)
+    scoreBoard (State (l1,l2) (r1,r2) history ) final = findScore + (if final then 1 else 0)
       where
-      total --checks for double dominos
-        | r1==r2 && l1==l2 = 2*(r2 + l1)
-        | r1==r2           = 2*r2 + l1
-        | l1==l2           = r2 + 2*l1
-        | otherwise        = l1 + r2
+      findScore 
+        | divBy3 && divBy5 = total `div` 3 + total `div` 5
+        | divBy3           = total `div` 3
+        | divBy5           = total `div` 5
+        | otherwise        = 0
+          where
+          divBy3 = total `mod` 3 == 0
+          divBy5 = total `mod` 5 == 0
+          total --checks for double dominos
+            | r1==r2 && l1==l2 = 2*(r2 + l1)
+            | r1==r2           = 2*r2 + l1
+            | l1==l2           = r2 + 2*l1
+            | otherwise        = l1 + r2
 
     {- blocked - takes a Hand and a Board state and outputs True if the player is blocked.
        A player is blocked if there are no Dominos in their Hand that they can play on
@@ -199,7 +207,7 @@ module DomsMatch where
       | otherwise       = Nothing
         where
         valid = or [a==r2,a==l1,b==r2,b==l1]
-        domino 
+        domino --orientation of the domino
           | a==r2 || b==l1 = (a,b)  
           | a==l1 || b==r2 = (b,a)
         updateHistory
@@ -238,19 +246,8 @@ module DomsMatch where
     smartPlayer dominos InitState _ _ = firstDrop
       where
       firstDrop | (5,4) `elem` dominos = ((5,4),R) --best opening choice
-                | otherwise = (fst ( maximumBy (comparing snd) (zip dominos (map (\(a,b) -> findScore a+b) dominos))), R)
-                
-    {- SHOULD THIS BE STANDALONE?????????????????????????????????????????????????????????-}
-    findScore :: Int -> Int 
-    findScore total 
-      | divBy3 && divBy5 = total `div` 3 + total `div` 5
-      | divBy3           = total `div` 3
-      | divBy5           = total `div` 5
-      | otherwise        = 0
-        where
-        divBy3 = total `mod` 3 == 0
-        divBy5 = total `mod` 5 == 0
-    
+      --          | otherwise = (fst ( maximumBy (comparing snd) (zip dominos (map (\(a,b) -> findScore a+b) dominos))), R)
+
     {- canPlay takes a domino and a board and returns the domino and the end to
        play it if it is a valid move. Otherwise, Nothing is returned. 
     -}
