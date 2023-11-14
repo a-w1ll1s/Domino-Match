@@ -29,9 +29,8 @@
 module DomsMatch where
     import System.Random
     import Data.List
-    import Data.Ord (comparing)   
-
-    import Data.Maybe 
+    import Data.Ord (comparing)
+    import Data.Maybe
 
     -- types used in this module
     type Domino = (Int, Int) -- a single domino
@@ -104,7 +103,7 @@ module DomsMatch where
           playGame' p1 p2 firstPlayer gen (s1, s2)
             | s1 == target = P1
             | s2 == target = P2
-            | otherwise   
+            | otherwise
                 = let
                       newScores = playDomsRound handSize target p1 p2 firstPlayer currentG (s1, s2)
                       (currentG, nextG) = split gen
@@ -162,26 +161,12 @@ module DomsMatch where
 
     {- scoreBoard: Takes a Board and Boolean that describes whether the domino placed was the last in the hand.
        If it is the initial state of the board before a domino has been placed then the score is trivially 0.
-       Otherwise, the total of the pips of the left and right dominos are found and then the score of that total
-       is found - including +1 if it was the last domino in the hand.
+       Otherwise, the score is found - including +1 if it was the last domino in the hand.
     -}
     scoreBoard :: Board -> Bool -> Int
     scoreBoard InitState _ = 0 --no dominos on the board
-    scoreBoard (State (l1,l2) (r1,r2) history ) final = findScore + (if final then 1 else 0)
-      where
-      findScore 
-        | divBy3 && divBy5 = total `div` 3 + total `div` 5
-        | divBy3           = total `div` 3
-        | divBy5           = total `div` 5
-        | otherwise        = 0
-          where
-          divBy3 = total `mod` 3 == 0
-          divBy5 = total `mod` 5 == 0
-          total --checks for double dominos
-            | r1==r2 && l1==l2 = 2*(r2 + l1)
-            | r1==r2           = 2*r2 + l1
-            | l1==l2           = r2 + 2*l1
-            | otherwise        = l1 + r2
+    scoreBoard (State left right history ) final 
+      = findScore left right + (if final then 1 else 0)
 
     {- blocked - takes a Hand and a Board state and outputs True if the player is blocked.
        A player is blocked if there are no Dominos in their Hand that they can play on
@@ -191,10 +176,10 @@ module DomsMatch where
     -}
     blocked :: Hand -> Board -> Bool
     blocked _ InitState = False -- cannot be blocked at the start of the game
-    blocked dominos (State (l1,l2) (r1,r2) history) = any matches dominos
+    blocked dominos (State (l1,l2) (r1,r2) history) = not (any matches dominos)
       where
       matches (a,b) = or [a==r2,a==l1,b==r2,b==l1] --at least one valid play
-       
+
     {- playDom - takes a player, domino, state of the board and an end to play the domino on.
        It returns a new state of the board with an updated history if it a legal play, 
        otherwise it returns Nothing. 
@@ -208,20 +193,20 @@ module DomsMatch where
         where
         valid = or [a==r2,a==l1,b==r2,b==l1]
         domino --orientation of the domino
-          | a==r2 || b==l1 = (a,b)  
+          | a==r2 || b==l1 = (a,b)
           | a==l1 || b==r2 = (b,a)
         updateHistory
           | end==R = history ++ [(domino,player,length history +1)]
           | end==L = (domino,player,length history +1) : history
-    
+
     {- simplePlayer takes a Hand, a Board, the Player and the scores and returns
        a domino and where to play it.
        It filters the players hand for valid dominos, and then chooses the first one.
        It does not include any strategy or reasoning.    
     -}
-    simplePlayer :: Hand -> Board -> Player -> Scores -> (Domino, End) 
+    simplePlayer :: Hand -> Board -> Player -> Scores -> (Domino, End)
     simplePlayer (dom:dominos) InitState _ _ = (dom,R)
-    simplePlayer dominos state@(State (l1,l2) (r1,r2) history) player scores 
+    simplePlayer dominos state@(State (l1,l2) (r1,r2) history) player scores
       = head (mapMaybe (`canPlay` state) dominos)
 
     {- smartPlayer takes a Hand, a Board, the Player and the scores and returns
@@ -240,19 +225,81 @@ module DomsMatch where
         Endgame - look for a winner
                 - look for a 59
                 - stitch if the opponent is close to winning
-              
+
+        -- highestScorer function (hand board -> domino end)
+        -- suits function (hand -> [int])
+        -- doms2scoreN (hand board int -> [doms])
+        -- find worst suits (sort history, find two gos in a row by player, those suits are bad)
     -}
     smartPlayer :: Hand -> Board -> Player -> Scores -> (Domino,End)
     smartPlayer dominos InitState _ _ = firstDrop
       where
-      firstDrop | (5,4) `elem` dominos = ((5,4),R) --best opening choice
-      --          | otherwise = (fst ( maximumBy (comparing snd) (zip dominos (map (\(a,b) -> findScore a+b) dominos))), R)
+      firstDrop
+        | (5,4) `elem` dominos = ((5,4),R) --best opening choice
+        | otherwise = (head (biggestSuit dominos), R)
+    {-smartPlayer dominos state@(State (l1,l2) (r1,r2) history) player (score1,score2)
+      | 61 - playerScore <= 10 = endGame
+      | 61 - opponentScore <= 10 = stitchGame
+      | otherwise = continueGame
+        where
+        (playerScore, opponentScore) 
+          | player == P1 = (score1,score2)
+          | otherwise    = (score2,score1)
+        endGame
+          | look for winner 
+          | look for 59
+          | otherwise = highestScorer
+        stitchGame
+          | find worst suits 
+          | otherwsie = highestScorer
+        continueGame 
+          | biggest suits, highest score
+          | otherwise = highestScorer
+    -}
 
+    {- findScore takes the two end dominos, gets the total by -accounting for doubles -
+       and then calculates the score from this total.
+    -}
+    findScore :: Domino -> Domino -> Int 
+    findScore (l1,l2) (r1,r2)
+        | divBy3 && divBy5 = total `div` 3 + total `div` 5
+        | divBy3           = total `div` 3
+        | divBy5           = total `div` 5
+        | otherwise        = 0
+          where
+          divBy3 = total `mod` 3 == 0
+          divBy5 = total `mod` 5 == 0
+          total --checks for double dominos
+            | r1==r2 && l1==l2 = 2*(r2 + l1)
+            | r1==r2           = 2*r2 + l1
+            | l1==l2           = r2 + 2*l1
+            | otherwise        = l1 + r2
+      
     {- canPlay takes a domino and a board and returns the domino and the end to
        play it if it is a valid move. Otherwise, Nothing is returned. 
     -}
     canPlay :: Domino -> Board -> Maybe (Domino, End)
-    canPlay (a,b) (State (l1,l2) (r1,r2) history) 
+    canPlay (a,b) (State (l1,l2) (r1,r2) history)
       | a == r2 || b == r2 = Just ((a,b),R)
       | a == l1 || b == l1 = Just ((a,b),L)
       | otherwise          = Nothing
+
+    {- biggestSuit takes a Hand of dominos and returns the subset of the Hand that
+       contains dominos that are a part of the largest Suit in the Hand.
+    -}
+    biggestSuit :: Hand -> Hand
+    biggestSuit dominos = inSuit dominos largest
+      where
+      suitList = map (length . inSuit dominos) [0..6]
+      largest = head (elemIndices (maximum suitList) suitList)
+      inSuit dominos suit = filter partOf dominos
+        where
+        partOf (a,b) = (a==suit) || (b==suit)
+
+    highestScorer :: Hand -> Board -> (Domino,End)
+    highestScorer dominos InitState = (dominos !! domIndex, R)
+      where
+      scoreList = map (\dom -> findScore dom dom) dominos
+      domIndex = head (elemIndices (maximum scoreList) scoreList)  
+    highestScorer dominos (State (l1,l2) (r1,r2) history)
+      = 
