@@ -17,13 +17,17 @@
 
    Stub with types provided by Emma Norling (October 2023).
 
-   You should add your functions and any additional types that you require to your own copy of
-   this file. Before you submit, make sure you update this header documentation to remove these
-   instructions and replace them with authorship details and a brief summary of the file contents.
+   The first type of DomsPlayer provided is simplePlayer. 
+   It plays the first valid domino with no strategy. 
+   
+   The second type of DomsPlayer is smartPlayer. 
+   It applies strategies for the first move, middle of the game and when the player
+   or the opponent nears the target. 
 
-   Similarly, remember you will be assessed not *just* on correctness, but also code style,
-   including (but not limited to) sensible naming, good functional decomposition, good layout,
-   and good comments.
+   These DomsPlayers can play against each other in any combination in domsMatch. 
+
+   scoreBoard, blocked, playDom and both DomsPlayers and their relevant functions 
+   provided by Adam Willis (November 2023).
  -}
 
 module DomsMatch where
@@ -160,6 +164,7 @@ module DomsMatch where
               Just newBoard = maybeBoard -- extract the new board from the Maybe type
 
     {- scoreBoard: Takes a Board and Boolean that describes whether the domino placed was the last in the hand.
+       It returns the score of the move that created the current board. 
        
        If it is the initial state of the board before a domino has been placed then the score is trivially 0.
        Otherwise, the score is found - including +1 if it was the last domino in the hand.
@@ -257,7 +262,7 @@ module DomsMatch where
       firstDrop
         | (5,4) `elem` dominos = ((5,4),R)
         | otherwise            = (head (biggestSuit dominos), R)
-    smartPlayer dominos state@(State (l1,l2) (r1,r2) history) player (score1,score2)
+    smartPlayer dominos state player (score1,score2)
       | 61 - playerScore <= 10 = endGame
       | 61 - opponentScore <= 10 = stitchGame
       | otherwise = continueGame
@@ -272,15 +277,16 @@ module DomsMatch where
             where
             getDomino = doms2ScoreN dominos state
         stitchGame
-         -- | find worst suits 
-          | otherwise = fromJust (highestScorer dominos state)
+          | isJust getDomino = fromJust getDomino
+          | otherwise        = fromJust (highestScorer dominos state)
+            where 
+            getDomino = worstSuit dominos state player
         continueGame 
           | isJust getDomino = fromJust getDomino
           | otherwise        = fromJust (highestScorer dominos state)
             where
             getDomino = highestScorer (biggestSuit dominos) state
 
-      
     {- canPlay takes a domino and a board and returns the domino and the end to
        play it if it is a valid move. Otherwise, Nothing is returned. 
     -}
@@ -351,3 +357,36 @@ module DomsMatch where
       | otherwise     = doms2ScoreN dominos state highest
         where
         highest = maximum (scoreList dominos state)
+
+    {- worstSuit takes a Hand of dominos, the current state of the board and the current player. 
+       It returns a domino that is part of the opponents worst suit and the end to play it
+       - if there is a valid domino. 
+      
+       It takes the history of the round, finds the dominos played by the opponent and the smallest 
+       suit in that hand. Then the hand of the current player is filtered to contain only the dominos
+       that are part of that suit. The first of this subset is returned if there are valid dominos.  
+    -}
+    worstSuit :: Hand -> Board -> Player -> Maybe (Domino,End)
+    worstSuit dominos state@(State left right history) currentPlayer
+      | validDominos == [] = Nothing
+      | otherwise          = Just (head validDominos)
+        where
+        validDominos = mapMaybe (`canPlay` state) filteredHand
+        filteredHand = filter (\(a,b) -> a==worstSuit || b==worstSuit) dominos
+        worstSuit    = smallestSuitNum opponentHand
+        opponentHand = mapMaybe getOpponentHand history  
+          where
+          getOpponentHand (domino,player,end)
+            | currentPlayer==player = Nothing
+            | otherwise             = Just domino
+
+    {- smallestSuitNum takes a hand of dominos and returns the suit number that is the smallest. 
+       It recurses through the suits and finds the size of each according to the hand. The smallest 
+       suit is then chosen and returned.
+    -}
+    smallestSuitNum :: Hand -> Int 
+    smallestSuitNum dominos = smallest
+      where
+      smallest    = head (elemIndices (minimum suitList) suitList)
+      suitList    = map (length . inSuit) [0..6] --length = how many dominos in that suit
+      inSuit suit = filter (\(a,b) -> (a==suit) || (b==suit)) dominos
