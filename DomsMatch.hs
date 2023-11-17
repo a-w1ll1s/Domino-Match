@@ -160,13 +160,28 @@ module DomsMatch where
               Just newBoard = maybeBoard -- extract the new board from the Maybe type
 
     {- scoreBoard: Takes a Board and Boolean that describes whether the domino placed was the last in the hand.
+       
        If it is the initial state of the board before a domino has been placed then the score is trivially 0.
        Otherwise, the score is found - including +1 if it was the last domino in the hand.
     -}
     scoreBoard :: Board -> Bool -> Int
     scoreBoard InitState _ = 0 --no dominos on the board
-    scoreBoard (State left right history ) final 
-      = findScore left right + (if final then 1 else 0)
+    scoreBoard (State left right history ) final = findScore left right + (if final then 1 else 0)
+      where
+      findScore (l1,l2) (r1,r2)
+        | divBy3 && divBy5 = total `div` 3 + total `div` 5
+        | divBy3           = total `div` 3
+        | divBy5           = total `div` 5
+        | otherwise        = 0
+          where
+          divBy3 = total `mod` 3 == 0
+          divBy5 = total `mod` 5 == 0 
+          total --checks for double dominos and for the first played domino
+            | (l1,l2) == (r1,r2) = l1 + l2
+            | r1==r2 && l1==l2   = 2*(r2 + l1)
+            | r1==r2             = 2*r2 + l1
+            | l1==l2             = r2 + 2*l1
+            | otherwise          = l1 + r2
 
     {- blocked - takes a Hand and a Board state and outputs True if the player is blocked.
        A player is blocked if there are no Dominos in their Hand that they can play on
@@ -181,6 +196,7 @@ module DomsMatch where
       matches (a,b) = or [a==r2,a==l1,b==r2,b==l1] --at least one valid play
 
     {- playDom - takes a player, domino, state of the board and an end to play the domino on.
+       
        It returns a new state of the board with an updated history if it a legal play, 
        otherwise it returns Nothing. 
     -}
@@ -201,6 +217,7 @@ module DomsMatch where
 
     {- simplePlayer takes a Hand, a Board, the Player and the scores and returns
        a domino and where to play it.
+       
        It filters the players hand for valid dominos, and then chooses the first one.
        It does not include any strategy or reasoning.    
     -}
@@ -212,32 +229,35 @@ module DomsMatch where
     {- smartPlayer takes a Hand, a Board, the Player and the scores and returns
        a domino and where to play it.
 
-       Strategies:
-        Opening - play (5,4) 
-                - play highest scorer
-                - play biggest double
-        
-        General - Place doubles early
-                - Place high scorers early
-                - Keep majority of suits
-                - History of opponent
-        
-        Endgame - look for a winner
-                - look for a 59
-                - stitch if the opponent is close to winning
+       STRATEGIES:
+       firstDrop (first move):
+       - See if the hand contains (5,4) as this is the best opening move due to
+         the opponent not being able to counter the points gained.
+       - If not, play a domino from the biggest suit to keep all options open. 
 
-        -- highestScorer function (hand board -> domino end)
-        -- suits function (hand -> [int])
-        -- doms2scoreN (hand board int -> [doms])
-        -- find worst suits (sort history, find two gos in a row by player, those suits are bad)
+       continueGame (neither players are close to the target):
+       - Play the highest scoring domino from the biggest suit in the hand to gain
+         points while avoiding knocking. 
+       - If there are no valid dominos, play the highest scoring domino in the hand. 
+
+       stitchGame (opponent is close to the target):
+       - Play a domino from the opponents worst suit to increase the chances of the
+         opponent knocking or stitching the game. 
+       - If there are no valid dominos, play the highest scoring domino in the hand. 
+
+       endGame (player is close to the target):
+       - Play a domino that will score enough to reach the target and win the game. 
+       - If there are no valid dominos, play a domino that will score enough to get
+         within 2 of the target, as that is the easiest amount to score. 
+       - If there are no valid dominos, play the highest scoring domino in the hand. 
     -}
     smartPlayer :: Hand -> Board -> Player -> Scores -> (Domino,End)
     smartPlayer dominos InitState _ _ = firstDrop
       where
       firstDrop
-        | (5,4) `elem` dominos = ((5,4),R) --best opening choice
-        | otherwise = (head (biggestSuit dominos), R)
-    {-smartPlayer dominos state@(State (l1,l2) (r1,r2) history) player (score1,score2)
+        | (5,4) `elem` dominos = ((5,4),R)
+        | otherwise            = (head (biggestSuit dominos), R)
+    smartPlayer dominos state@(State (l1,l2) (r1,r2) history) player (score1,score2)
       | 61 - playerScore <= 10 = endGame
       | 61 - opponentScore <= 10 = stitchGame
       | otherwise = continueGame
@@ -246,39 +266,26 @@ module DomsMatch where
           | player == P1 = (score1,score2)
           | otherwise    = (score2,score1)
         endGame
-          | look for winner 
-          | look for 59
-          | otherwise = highestScorer
+          | isJust (getDomino (61 - playerScore)) = fromJust (getDomino (61 - playerScore))
+          | isJust (getDomino (59 - playerScore)) = fromJust (getDomino (59 - playerScore))
+          | otherwise                             = fromJust (highestScorer dominos state) 
+            where
+            getDomino = doms2ScoreN dominos state
         stitchGame
-          | find worst suits 
-          | otherwsie = highestScorer
+         -- | find worst suits 
+          | otherwise = fromJust (highestScorer dominos state)
         continueGame 
-          | biggest suits, highest score
-          | otherwise = highestScorer
-    -}
+          | isJust getDomino = fromJust getDomino
+          | otherwise        = fromJust (highestScorer dominos state)
+            where
+            getDomino = highestScorer (biggestSuit dominos) state
 
-    {- findScore takes the two end dominos, gets the total by -accounting for doubles -
-       and then calculates the score from this total.
-    -}
-    findScore :: Domino -> Domino -> Int 
-    findScore (l1,l2) (r1,r2)
-        | divBy3 && divBy5 = total `div` 3 + total `div` 5
-        | divBy3           = total `div` 3
-        | divBy5           = total `div` 5
-        | otherwise        = 0
-          where
-          divBy3 = total `mod` 3 == 0
-          divBy5 = total `mod` 5 == 0
-          total --checks for double dominos
-            | r1==r2 && l1==l2 = 2*(r2 + l1)
-            | r1==r2           = 2*r2 + l1
-            | l1==l2           = r2 + 2*l1
-            | otherwise        = l1 + r2
       
     {- canPlay takes a domino and a board and returns the domino and the end to
        play it if it is a valid move. Otherwise, Nothing is returned. 
     -}
     canPlay :: Domino -> Board -> Maybe (Domino, End)
+    canPlay dom InitState = Just (dom, R) 
     canPlay (a,b) (State (l1,l2) (r1,r2) history)
       | a == r2 || b == r2 = Just ((a,b),R)
       | a == l1 || b == l1 = Just ((a,b),L)
@@ -286,20 +293,61 @@ module DomsMatch where
 
     {- biggestSuit takes a Hand of dominos and returns the subset of the Hand that
        contains dominos that are a part of the largest Suit in the Hand.
+       
+       It recurses through each suit and finds how many dominos in the hand are part of it. 
+       The suit with the most dominos is chosen and returned as a subset of the hand. 
     -}
     biggestSuit :: Hand -> Hand
-    biggestSuit dominos = inSuit dominos largest
+    biggestSuit dominos = inSuit largest
       where
-      suitList = map (length . inSuit dominos) [0..6]
-      largest = head (elemIndices (maximum suitList) suitList)
-      inSuit dominos suit = filter partOf dominos
-        where
-        partOf (a,b) = (a==suit) || (b==suit)
+      largest     = head (elemIndices (maximum suitList) suitList)
+      suitList    = map (length . inSuit) [0..6] --length = how many dominos in that suit
+      inSuit suit = filter (\(a,b) -> (a==suit) || (b==suit)) dominos
 
-    highestScorer :: Hand -> Board -> (Domino,End)
-    highestScorer dominos InitState = (dominos !! domIndex, R)
+    {- doms2ScoreN takes a Hand of dominos, the current state of the board and a goal value. 
+       If the hand does not contain a domino that can score the goal value, it returns Nothing.
+       If there is a valid domino in the hand, it returns that domino and its valid end. 
+       
+       It takes the list of dominos, gets the list of scores and playable dominos and checks if 
+       there is a valid domino. 
+    -}
+    doms2ScoreN :: Hand -> Board -> Int -> Maybe (Domino,End)  
+    doms2ScoreN dominos state goal
+      | dominos == [] = Nothing
+      | otherwise     = dom2Play
+        where
+        dom2Play
+          | goalIndices == [] = Nothing
+          | otherwise         = Just (validHand' !! head goalIndices)
+            where
+            goalIndices = elemIndices goal scoreList'
+            scoreList'  = scoreList dominos state
+            validHand'  = validHand dominos state
+
+    {- scoreList takes a hand of dominos, the current state of the board and returns 
+       the list of scores that the playable dominos in the hand would produce. 
+    -}
+    scoreList :: Hand -> Board -> [Int]
+    scoreList dominos state = map (`scoreBoard` False) validBoards
       where
-      scoreList = map (\dom -> findScore dom dom) dominos
-      domIndex = head (elemIndices (maximum scoreList) scoreList)  
-    highestScorer dominos (State (l1,l2) (r1,r2) history)
-      = 
+      validBoards = mapMaybe (\(dom, end) -> playDom P1 dom state end) validHand' --player is unimportant
+      validHand'  = validHand dominos state
+
+    {- validHand takes a hand of dominos and the current state of the board and returns
+       the list of playable dominos and their valid end.
+    -}
+    validHand :: Hand -> Board -> [(Domino,End)]
+    validHand dominos state = mapMaybe (`canPlay` state) dominos 
+
+    {- highestScorer takes a Hand of dominos and the current State of the Board and returns
+       the highest scoring valid play in the form (Domino, End).
+       
+       It takes the list of dominos, gets the maximum valid score and returns
+       the highest scoring domino and the valid end - if there are any valid dominos.
+    -}
+    highestScorer :: Hand -> Board -> Maybe (Domino,End)
+    highestScorer dominos state 
+      | dominos == [] = Nothing
+      | otherwise     = doms2ScoreN dominos state highest
+        where
+        highest = maximum (scoreList dominos state)
