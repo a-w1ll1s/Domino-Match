@@ -306,9 +306,9 @@ module DomsMatch where
     biggestSuit :: Hand -> Hand
     biggestSuit dominos = inSuit largest
       where
+      inSuit suit = filter (\(a,b) -> (a==suit) || (b==suit)) dominos
       largest     = head (elemIndices (maximum suitList) suitList)
       suitList    = map (length . inSuit) [0..6] --length = how many dominos in that suit
-      inSuit suit = filter (\(a,b) -> (a==suit) || (b==suit)) dominos
 
     {- validHand takes a hand of dominos and the current state of the board and returns
        the list of playable dominos and their valid end.
@@ -391,4 +391,3 @@ module DomsMatch where
           getOpponentHand (domino,player,end)
             | currentPlayer==player = Nothing
             | otherwise             = Just domino
-            
