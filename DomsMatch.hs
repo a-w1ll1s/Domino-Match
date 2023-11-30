@@ -325,7 +325,6 @@ module DomsMatch where
       validBoards = mapMaybe (\(dom, end) -> playDom P1 dom state end) validHand' --player is unimportant
       validHand'  = validHand dominos state
 
-
     {- doms2ScoreN takes a Hand of dominos, the current state of the board and a goal value. 
        If the hand does not contain a domino that can score the goal value, it returns Nothing.
        If there is a valid domino in the hand, it returns that domino and its valid end. 
