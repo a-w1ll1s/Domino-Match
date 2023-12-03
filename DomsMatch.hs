@@ -310,21 +310,6 @@ module DomsMatch where
       largest     = head (elemIndices (maximum suitList) suitList)
       suitList    = map (length . inSuit) [0..6] --length = how many dominos in that suit
 
-    {- validHand takes a hand of dominos and the current state of the board and returns
-       the list of playable dominos and their valid end.
-    -}
-    validHand :: Hand -> Board -> [(Domino,End)]
-    validHand dominos state = mapMaybe (`canPlay` state) dominos 
-
-    {- scoreList takes a hand of dominos, the current state of the board and returns 
-       the list of scores that the playable dominos in the hand would produce. 
-    -}
-    scoreList :: Hand -> Board -> [Int]
-    scoreList dominos state = map (`scoreBoard` False) validBoards
-      where
-      validBoards = mapMaybe (\(dom, end) -> playDom P1 dom state end) validHand' --player is unimportant
-      validHand'  = validHand dominos state
-
     {- doms2ScoreN takes a Hand of dominos, the current state of the board and a goal value. 
        If the hand does not contain a domino that can score the goal value, it returns Nothing.
        If there is a valid domino in the hand, it returns that domino and its valid end. 
@@ -345,6 +330,21 @@ module DomsMatch where
             scoreList'  = scoreList dominos state
             validHand'  = validHand dominos state
 
+    {- validHand takes a hand of dominos and the current state of the board and returns
+       the list of playable dominos and their valid end.
+    -}
+    validHand :: Hand -> Board -> [(Domino,End)]
+    validHand dominos state = mapMaybe (`canPlay` state) dominos 
+
+    {- scoreList takes a hand of dominos, the current state of the board and returns 
+       the list of scores that the playable dominos in the hand would produce. 
+    -}
+    scoreList :: Hand -> Board -> [Int]
+    scoreList dominos state = map (`scoreBoard` False) validBoards
+      where
+      validBoards = mapMaybe (\(dom, end) -> playDom P1 dom state end) validHand' --player is unimportant
+      validHand'  = validHand dominos state
+
     {- highestScorer takes a Hand of dominos and the current State of the Board and returns
        the highest scoring valid play in the form (Domino, End).
        
@@ -357,17 +357,6 @@ module DomsMatch where
       | otherwise     = doms2ScoreN dominos state highest
         where
         highest = maximum (scoreList dominos state)
-
-    {- smallestSuitNum takes a hand of dominos and returns the suit number that is the smallest. 
-       It recurses through the suits and finds the size of each according to the hand. The smallest 
-       suit is then chosen and returned.
-    -}
-    smallestSuitNum :: Hand -> Int 
-    smallestSuitNum dominos = smallest
-      where
-      smallest    = head (elemIndices (minimum suitList) suitList)
-      suitList    = map (length . inSuit) [0..6] --length = how many dominos in that suit
-      inSuit suit = filter (\(a,b) -> (a==suit) || (b==suit)) dominos
 
     {- worstSuit takes a Hand of dominos, the current state of the board and the current player. 
        It returns a domino that is part of the opponents worst suit and the end to play it
@@ -390,3 +379,14 @@ module DomsMatch where
           getOpponentHand (domino,player,end)
             | currentPlayer==player = Nothing
             | otherwise             = Just domino
+
+    {- smallestSuitNum takes a hand of dominos and returns the suit number that is the smallest. 
+       It recurses through the suits and finds the size of each according to the hand. The smallest 
+       suit is then chosen and returned.
+    -}
+    smallestSuitNum :: Hand -> Int 
+    smallestSuitNum dominos = smallest
+      where
+      smallest    = head (elemIndices (minimum suitList) suitList)
+      suitList    = map (length . inSuit) [0..6] --length = how many dominos in that suit
+      inSuit suit = filter (\(a,b) -> (a==suit) || (b==suit)) dominos
