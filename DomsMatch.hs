@@ -273,9 +273,9 @@ module DomsMatch where
         | (5,4) `elem` dominos = ((5,4),R)
         | otherwise            = (head (biggestSuit dominos), R)
     smartPlayer dominos state player (score1,score2)
-      | 61 - playerScore <= 10 = endGame
+      | 61 - playerScore <= 10   = endGame
       | 61 - opponentScore <= 10 = stitchGame
-      | otherwise = continueGame
+      | otherwise                = continueGame
         where
         (playerScore, opponentScore) 
           | player == P1 = (score1,score2)
