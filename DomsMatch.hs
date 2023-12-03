@@ -231,6 +231,16 @@ module DomsMatch where
     simplePlayer dominos state@(State (l1,l2) (r1,r2) history) player scores
       = head (mapMaybe (`canPlay` state) dominos)
 
+    {- canPlay takes a domino and a board and returns the domino and the end to
+       play it if it is a valid move. Otherwise, Nothing is returned. 
+    -}
+    canPlay :: Domino -> Board -> Maybe (Domino, End)
+    canPlay dom InitState = Just (dom, R) 
+    canPlay (a,b) (State (l1,l2) (r1,r2) history)
+      | a == r2 || b == r2 = Just ((a,b),R)
+      | a == l1 || b == l1 = Just ((a,b),L)
+      | otherwise          = Nothing
+
     {- smartPlayer takes a Hand, a Board, the Player and the scores and returns
        a domino and where to play it.
 
@@ -286,16 +296,6 @@ module DomsMatch where
           | otherwise        = fromJust (highestScorer dominos state)
             where
             getDomino = highestScorer (biggestSuit dominos) state
-
-    {- canPlay takes a domino and a board and returns the domino and the end to
-       play it if it is a valid move. Otherwise, Nothing is returned. 
-    -}
-    canPlay :: Domino -> Board -> Maybe (Domino, End)
-    canPlay dom InitState = Just (dom, R) 
-    canPlay (a,b) (State (l1,l2) (r1,r2) history)
-      | a == r2 || b == r2 = Just ((a,b),R)
-      | a == l1 || b == l1 = Just ((a,b),L)
-      | otherwise          = Nothing
 
     {- biggestSuit takes a Hand of dominos and returns the subset of the Hand that
        contains dominos that are a part of the largest Suit in the Hand.
